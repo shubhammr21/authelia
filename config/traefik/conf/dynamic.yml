@@ -61,17 +61,56 @@ http:
         servers:
           - url: http://192.168.60.5:8123/
 
-    # Authelia basic auth guard
-    auth-basic:
+  # services:
+  #   mdas:
+  #     loadBalancer:
+  #       servers:
+  #         - url: http://10.0.0.230:8004
+
+  #   flower:
+  #     loadBalancer:
+  #       servers:
+  #         - url: http://flower:5555
+
+  ## MIDDLEWARES ##
+  middlewares:
+    csrf:
+      # https://docs.traefik.io/master/middlewares/headers/#hostsproxyheaders
+      # https://docs.djangoproject.com/en/dev/ref/csrf/#ajax
+      headers:
+        hostsProxyHeaders: ["X-CSRFToken"]
+    secureHeaders:
+      headers:
+        sslRedirect: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+
+    simpleAuth:
+      basicAuth:
+        users:
+          - "admin:$apr1$x9xECBrK$cmxx7DtdWTtepCCy2dbcP."
+    # Authelia guard
+    auth:
       forwardauth:
-        address: http://auth:9091/api/verify?auth=basic # replace auth with your authelia container name
+        address: http://authelia:9091/api/verify?rd=https://auth.localhost/ # replace auth with your authelia container name
         trustForwardHeader: true
         authResponseHeaders:
           - Remote-User
           - Remote-Groups
           - Remote-Name
           - Remote-Email
-
+    # Authelia basic auth guard
+    auth-basic:
+      forwardauth:
+        address: http://authelia:9091/api/verify?auth=basic # replace auth with your authelia container name
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Name
+          - Remote-Email
     # Security headers
     securityHeaders:
       headers:
@@ -92,47 +131,6 @@ http:
         stsIncludeSubdomains: true
         stsSeconds: 63072000
         stsPreload: true
-
-  # services:
-  #   mdas:
-  #     loadBalancer:
-  #       servers:
-  #         - url: http://10.0.0.230:8004
-
-  #   flower:
-  #     loadBalancer:
-  #       servers:
-  #         - url: http://flower:5555
-
-  ## MIDDLEWARES ##
-  middlewares:
-    # Authelia guard
-    auth:
-      forwardauth:
-        address: http://auth:9091/api/verify?rd=https://auth.domain.com/ # replace auth with your authelia container name
-        trustForwardHeader: true
-        authResponseHeaders:
-          - Remote-User
-          - Remote-Groups
-          - Remote-Name
-          - Remote-Email
-    csrf:
-      # https://docs.traefik.io/master/middlewares/headers/#hostsproxyheaders
-      # https://docs.djangoproject.com/en/dev/ref/csrf/#ajax
-      headers:
-        hostsProxyHeaders: ["X-CSRFToken"]
-    secureHeaders:
-      headers:
-        sslRedirect: true
-        forceSTSHeader: true
-        stsIncludeSubdomains: true
-        stsPreload: true
-        stsSeconds: 31536000
-
-    simpleAuth:
-      basicAuth:
-        users:
-          - "admin:$apr1$x9xECBrK$cmxx7DtdWTtepCCy2dbcP."
 
 tls:
   stores:

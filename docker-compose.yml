@@ -46,12 +46,12 @@ services:
       - 'traefik.http.routers.authelia.rule=Host(`auth.localhost`)'
       - 'traefik.http.routers.authelia.entrypoints=https'
       - 'traefik.http.routers.authelia.tls=true'
-      - 'traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/verify?rd=https://auth.localhost/'
-      - 'traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true'
-      - 'traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email'
-      - 'traefik.http.middlewares.authelia-basic.forwardauth.address=http://authelia:9091/api/verify?auth=basic'
-      - 'traefik.http.middlewares.authelia-basic.forwardauth.trustForwardHeader=true'
-      - 'traefik.http.middlewares.authelia-basic.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email'
+      # - 'traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/verify?rd=https://auth.localhost/'
+      # - 'traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true'
+      # - 'traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email'
+      # - 'traefik.http.middlewares.authelia-basic.forwardauth.address=http://authelia:9091/api/verify?auth=basic'
+      # - 'traefik.http.middlewares.authelia-basic.forwardauth.trustForwardHeader=true'
+      # - 'traefik.http.middlewares.authelia-basic.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email'
     expose:
       - 9091
     # restart: unless-stopped
@@ -71,7 +71,7 @@ services:
       - 'traefik.http.routers.nextcloud.rule=Host(`nextcloud.localhost`)'
       - 'traefik.http.routers.nextcloud.entrypoints=https'
       - 'traefik.http.routers.nextcloud.tls=true'
-      - 'traefik.http.routers.nextcloud.middlewares=authelia@docker'
+      - 'traefik.http.routers.nextcloud.middlewares=auth@file'
     expose:
       - 443
     # restart: unless-stopped
@@ -115,26 +115,76 @@ services:
       - "./data/redis:/bitnami/redis/data"
 
   openldap:
-    image: docker.io/bitnami/openldap:2.6
+    image: osixia/openldap:1.5.0
     container_name: openldap
+    # environment:
+    #   - "LDAP_ORGANISATION=OpenLDAP"
+    #   - "LDAP_DOMAIN=openldap.localhost"
+    #   - "LDAP_ROOT_PASSWORD=password"
+    #   - "LDAP_ROOT_DN=cn=admin,dc=openldap,dc=localhost"
+    #   - "LDAP_BASE_DN=dc=openldap,dc=localhost"
+    #   - "LDAP_ADMIN_PASSWORD=password"
+    #   - "LDAP_ADMIN_DN=cn=admin,dc=openldap,dc=localhost"
+    #   - "LDAP_ADMIN_UID=admin"
+    #   - "LDAP_ADMIN_GID=admin"
+    tty: true
+    stdin_open: true
+    env_file:
+      - ./.envs/.openldap
+    volumes:
+      - "./data/openldap/ldap:/var/lib/ldap"
+      - "./data/openldap/slapd:/etc/ldap/slapd.d"
+      - "./data/openldap/certs:/container/service/slapd/assets/certs/"
+      - "./data/openldap/ldif:/tmp/users"
+    ports:
+      - "389:389"
+      - "636:636"
     networks:
       - proxy
-    ports:
-      - '1389:1389'
-      - '1636:1636'
-    env_file:
-      - ./.envs/.postgres
+    # For replication to work correctly, domainname and hostname must be
+    # set correctly so that "hostname"."domainname" equates to the
+    # fully-qualified domain name for the host.
+    domainname: "ldap.localhost"
+    hostname: "ldap-server"
+  
+  phpldapadmin:
+    image: osixia/phpldapadmin:latest
+    container_name: phpldapadmin
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: "openldap"
+      PHPLDAPADMIN_HTTPS: "false"
+    # ports:
+    #   - "8080:80"
+    networks:
+      - proxy
+    depends_on:
+      - openldap
     labels:
       - 'traefik.enable=true'
-      - "traefik.docker.network=proxy"
-      - 'traefik.http.routers.ldap.rule=Host(`ldap.localhost`)'
-      - 'traefik.http.routers.ldap.entrypoints=https'
-      - 'traefik.http.routers.ldap.tls=true'
-      # - 'traefik.http.routers.ldap.middlewares=authelia-basic@docker'
-      # - "traefik.http.routers.ldap.service=dlms-service"
-      # - "traefik.http.services.ldap-service.loadbalancer.server.port=1389"
-    volumes:
-      - "./data/openldap:/bitnami/openldap:rw"
+      - 'traefik.http.routers.ldapadmin.rule=Host(`ldapadmin.localhost`)'
+      - 'traefik.http.routers.ldapadmin.entrypoints=https'
+      - 'traefik.http.routers.ldapadmin.tls=true'
+      # - 'traefik.http.routers.ldapadmin.middlewares=authelia-basic@docker'
+    # image: docker.io/bitnami/openldap:2.6
+    # container_name: openldap
+    # networks:
+    #   - proxy
+    # ports:
+    #   - '1389:1389'
+    #   - '1636:1636'
+    # env_file:
+    #   - ./.envs/.openldap
+    # labels:
+    #   - 'traefik.enable=true'
+    #   - "traefik.docker.network=proxy"
+    #   - 'traefik.http.routers.ldap.rule=Host(`ldap.localhost`)'
+    #   - 'traefik.http.routers.ldap.entrypoints=https'
+    #   - 'traefik.http.routers.ldap.tls=true'
+    #   # - 'traefik.http.routers.ldap.middlewares=authelia-basic@docker'
+    #   # - "traefik.http.routers.ldap.service=dlms-service"
+    #   # - "traefik.http.services.ldap-service.loadbalancer.server.port=1389"
+    # volumes:
+    #   - "./data/openldap:/bitnami/openldap:rw"
 
   postgres:
     container_name: auth-postgresql

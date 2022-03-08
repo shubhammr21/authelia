@@ -32,6 +32,9 @@ entryPoints:
   https:
     # https
     address: ":443"
+    http:
+      middlewares:
+        - securityHeaders@file
     # http:
     #   tls:
     #     certResolver: letsencrypt
