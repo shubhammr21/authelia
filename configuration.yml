@@ -1,0 +1,103 @@
+---
+###############################################################################
+#                           Authelia Configuration                            #
+###############################################################################
+
+theme: dark
+jwt_secret: "YOUR_JWT_SECRET"
+# default_redirection_url: https://YOUR_DOMAIN.COM/
+
+server:
+  host: 0.0.0.0
+  port: 9091
+  path: ""
+  read_buffer_size: 4096
+  write_buffer_size: 4096
+  enable_pprof: false
+  enable_expvars: false
+  disable_healthcheck: false
+  tls:
+    key: ""
+    certificate: ""
+
+log:
+  level: info
+
+totp:
+  issuer: example.com
+  period: 30
+  skew: 1
+
+authentication_backend:
+  disable_reset_password: false
+  refresh_interval: 5m
+  file:
+    path: /config/users_database.yml
+    password:
+      algorithm: argon2id
+      iterations: 1
+      key_length: 32
+      salt_length: 16
+      memory: 1024
+      parallelism: 8
+
+access_control:
+  default_policy: deny
+  rules:
+    ## bypass rule
+    - domain:
+        - "auth.example.com"
+      policy: bypass
+    ## catch-all
+    - domain: "*.example.com"
+      subject:
+        - "group:admins"
+      policy: one_factor
+
+session:
+  name: authelia_session
+  domain: example.com
+  same_site: lax
+  secret: "YOUR_SESSION_SECRET"
+  expiration: 1h
+  inactivity: 5m
+  remember_me_duration: 2M
+  redis:
+    host: redis
+    port: 6379
+    # password: password
+    database_index: 0
+    maximum_active_connections: 10
+    minimum_idle_connections: 0
+
+regulation:
+  max_retries: 3
+  find_time: 10m
+  ban_time: 12h
+
+storage:
+  encryption_key: "YOUR_STORAGE_ENCRYPTION_KEY"
+  postgres:
+    host: postgres
+    port: 5432
+    database: authelia
+    schema: public
+    username: authelia
+    password: mypassword
+
+notifier:
+  disable_startup_check: false
+  smtp:
+    # username: shubhammaurya@grampower.com
+    # password: "Skmadgjm@123"
+    host: mailhog
+    port: 8025
+    sender: shubhammaurya@grampower.com
+    identifier: localhost
+    subject: "[Authelia] {title}"
+    startup_check_address: test@authelia.com
+    # disable_require_tls: false
+    # disable_html_emails: false
+    # tls:
+    #   skip_verify: false
+    #   minimum_version: TLS1.2

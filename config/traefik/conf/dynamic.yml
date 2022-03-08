@@ -1,0 +1,152 @@
+# Dynamic configuration
+http:
+  ## EXTERNAL ROUTING EXAMPLE - Only use if you want to proxy something manually ##
+  # routers:
+  #   # Homeassistant routing example - Remove if not used
+  #   homeassistant:
+  #     entryPoints:
+  #       - https
+  #     rule: 'Host(`homeassistant.domain.com`)'
+  #     service: homeassistant
+  #     middlewares:
+  #       - "auth"
+  #   # api:
+  #   #   # rule: "Host(`dev.grampower.com`)"
+  #   #   entrypoints:
+  #   #     - web-secure
+  #   #   middlewares:
+  #   #     - simpleAuth
+  #   #   service: "api@internal"
+  #   #   tls:
+  #   #     certResolver: "letsencrypt"
+  #   api:
+  #     # rule: "Host(`dev.grampower.com`)"
+  #     entrypoints:
+  #       - web-secure
+  #     middlewares:
+  #       - simpleAuth
+  #     service: "api@internal"
+  #     tls:
+  #       certResolver: "letsencrypt"
+  #   mdas-secure:
+  #     rule: "Host(`mdas.avdhaan.grampower.com`)"
+  #     entryPoints:
+  #       - web-secure
+  #     middlewares:
+  #       - csrf
+  #     service: mdas
+  #     tls:
+  #       # https://docs.traefik.io/master/routing/routers/#certresolver
+  #       certResolver: letsencrypt
+
+  #   flower-secure-router:
+  #     rule: "Host(`dev.grampower.com/mdas`)"
+  #     entryPoints:
+  #       - flower
+  #     service: flower
+  #     tls:
+  #       # https://docs.traefik.io/master/routing/routers/#certresolver
+  #       certResolver: letsencrypt
+
+  #   csrf:
+  #     # https://docs.traefik.io/master/middlewares/headers/#hostsproxyheaders
+  #     # https://docs.djangoproject.com/en/dev/ref/csrf/#ajax
+  #     headers:
+  #       hostsProxyHeaders: ["X-CSRFToken"]
+  ## SERVICES EXAMPLE ##
+  services:
+    # Homeassistant service example - Remove if not used
+    homeassistant:
+      loadBalancer:
+        servers:
+          - url: http://192.168.60.5:8123/
+
+    # Authelia basic auth guard
+    auth-basic:
+      forwardauth:
+        address: http://auth:9091/api/verify?auth=basic # replace auth with your authelia container name
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Name
+          - Remote-Email
+
+    # Security headers
+    securityHeaders:
+      headers:
+        customResponseHeaders:
+          X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
+          server: ""
+          X-Forwarded-Proto: "https"
+        sslProxyHeaders:
+          X-Forwarded-Proto: https
+        referrerPolicy: "strict-origin-when-cross-origin"
+        hostsProxyHeaders:
+          - "X-Forwarded-Host"
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        contentTypeNosniff: true
+        browserXssFilter: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsSeconds: 63072000
+        stsPreload: true
+
+  # services:
+  #   mdas:
+  #     loadBalancer:
+  #       servers:
+  #         - url: http://10.0.0.230:8004
+
+  #   flower:
+  #     loadBalancer:
+  #       servers:
+  #         - url: http://flower:5555
+
+  ## MIDDLEWARES ##
+  middlewares:
+    # Authelia guard
+    auth:
+      forwardauth:
+        address: http://auth:9091/api/verify?rd=https://auth.domain.com/ # replace auth with your authelia container name
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Name
+          - Remote-Email
+    csrf:
+      # https://docs.traefik.io/master/middlewares/headers/#hostsproxyheaders
+      # https://docs.djangoproject.com/en/dev/ref/csrf/#ajax
+      headers:
+        hostsProxyHeaders: ["X-CSRFToken"]
+    secureHeaders:
+      headers:
+        sslRedirect: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+
+    simpleAuth:
+      basicAuth:
+        users:
+          - "admin:$apr1$x9xECBrK$cmxx7DtdWTtepCCy2dbcP."
+
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/traefik/certs/trtest+3.pem
+        keyFile: /etc/traefik/certs/trtest+3-key.pem
+  options:
+    default:
+      minVersion: VersionTLS12
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305

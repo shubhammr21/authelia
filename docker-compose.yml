@@ -1,0 +1,162 @@
+version: '3'
+
+networks:
+  net:
+    driver: bridge
+  proxy:
+    external: true
+services:
+
+  traefik:
+    image: traefik:v2.6
+    container_name: traefik
+    volumes:
+      - ./config/traefik/conf:/etc/traefik
+      # - production_traefik:/etc/traefik/acme:z
+      - ./logs:/var/log
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - proxy
+    ports:
+      - 80:80
+      - 443:443
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.traefik-secure.entrypoints=https"
+      - "traefik.http.routers.traefik-secure.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik-secure.middlewares=simpleAuth@file"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+      - 'traefik.http.routers.traefik-secure.tls=true'
+
+  authelia:
+    image: authelia/authelia
+    container_name: authelia
+    volumes:
+      - ./config/authelia:/config
+      - ./data/authelia:/var/lib/authelia
+    networks:
+      - proxy
+    depends_on:
+      - redis
+      - postgres
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.authelia.rule=Host(`auth.localhost`)'
+      - 'traefik.http.routers.authelia.entrypoints=https'
+      - 'traefik.http.routers.authelia.tls=true'
+      - 'traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/verify?rd=https://auth.localhost/'
+      - 'traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true'
+      - 'traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email'
+      - 'traefik.http.middlewares.authelia-basic.forwardauth.address=http://authelia:9091/api/verify?auth=basic'
+      - 'traefik.http.middlewares.authelia-basic.forwardauth.trustForwardHeader=true'
+      - 'traefik.http.middlewares.authelia-basic.forwardauth.authResponseHeaders=Remote-User, Remote-Groups, Remote-Name, Remote-Email'
+    expose:
+      - 9091
+    # restart: unless-stopped
+    environment:
+      - TZ=Australia/Melbourne
+
+  nextcloud:
+    image: linuxserver/nextcloud
+    container_name: nextcloud
+    volumes:
+      - ./config/nextcloud:/config
+      - ./data/nextcloud:/data
+    networks:
+      - proxy
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.nextcloud.rule=Host(`nextcloud.localhost`)'
+      - 'traefik.http.routers.nextcloud.entrypoints=https'
+      - 'traefik.http.routers.nextcloud.tls=true'
+      - 'traefik.http.routers.nextcloud.middlewares=authelia@docker'
+    expose:
+      - 443
+    # restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Australia/Melbourne
+      
+  heimdall:
+    image: linuxserver/heimdall
+    container_name: heimdall
+    volumes:
+      - ./config/heimdall:/config
+    networks:
+      - proxy
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.heimdall.rule=Host(`heimdall.localhost`)'
+      - 'traefik.http.routers.heimdall.entrypoints=https'
+      - 'traefik.http.routers.heimdall.tls=true'
+      - 'traefik.http.routers.heimdall.middlewares=authelia-basic@docker'
+    expose:
+      - 443
+    # restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Australia/Melbourne
+  
+  redis:
+    image: "redis:6"
+    container_name: auth-redis
+    hostname: redis
+    networks:
+      - proxy
+    # environment:
+    #   - "REDIS_PASSWORD=password"
+    # ports:
+    #   - "6379:6379"
+    volumes:
+      - "./data/redis:/bitnami/redis/data"
+
+  openldap:
+    image: docker.io/bitnami/openldap:2.6
+    container_name: openldap
+    networks:
+      - proxy
+    ports:
+      - '1389:1389'
+      - '1636:1636'
+    env_file:
+      - ./.envs/.postgres
+    labels:
+      - 'traefik.enable=true'
+      - "traefik.docker.network=proxy"
+      - 'traefik.http.routers.ldap.rule=Host(`ldap.localhost`)'
+      - 'traefik.http.routers.ldap.entrypoints=https'
+      - 'traefik.http.routers.ldap.tls=true'
+      # - 'traefik.http.routers.ldap.middlewares=authelia-basic@docker'
+      # - "traefik.http.routers.ldap.service=dlms-service"
+      # - "traefik.http.services.ldap-service.loadbalancer.server.port=1389"
+    volumes:
+      - "./data/openldap:/bitnami/openldap:rw"
+
+  postgres:
+    container_name: auth-postgresql
+    # restart: unless-stopped
+    hostname: postgres
+    networks:
+      - proxy
+    build:
+      context: .
+      dockerfile: ./config/postgres/Dockerfile
+    image: auth-postgres:14.1
+    volumes:
+      - ./data/postgres/data:/var/lib/postgresql/data:Z
+      - ./data/postgres/backups:/backups:z
+    env_file:
+      - ./.envs/.postgres
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.0
+    container_name: auth-mailhog
+    # hostname: mailhog
+    networks:
+      - proxy
+    ports:
+      - "8025:8025"
