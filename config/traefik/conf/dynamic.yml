@@ -92,6 +92,15 @@ http:
         users:
           - "admin:$apr1$x9xECBrK$cmxx7DtdWTtepCCy2dbcP."
     # Authelia guard
+    sso:
+      forwardauth:
+        address: http://hes-django:8000/api/verify/?rd=https://auth.localhost/ # replace auth with your authelia container name
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Name
+          - Remote-Email
     auth:
       forwardauth:
         address: http://authelia:9091/api/verify?rd=https://auth.localhost/ # replace auth with your authelia container name

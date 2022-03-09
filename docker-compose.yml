@@ -71,7 +71,7 @@ services:
       - 'traefik.http.routers.nextcloud.rule=Host(`nextcloud.localhost`)'
       - 'traefik.http.routers.nextcloud.entrypoints=https'
       - 'traefik.http.routers.nextcloud.tls=true'
-      - 'traefik.http.routers.nextcloud.middlewares=auth@file'
+      - 'traefik.http.routers.nextcloud.middlewares=auth-basic@file'
     expose:
       - 443
     # restart: unless-stopped
